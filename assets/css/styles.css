@@ -193,6 +193,60 @@ body {
   transform: translateY(-1px);
 }
 
+/* Demo ribbon: second header row with direct links to all five demo pages */
+.demo-ribbon {
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(2, 6, 16, 0.65);
+}
+
+.demo-ribbon-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0.45rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.demo-ribbon-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  margin-right: 0.4rem;
+  white-space: nowrap;
+}
+
+.demo-ribbon-btn {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 0.35rem 0.95rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.7);
+  transition: var(--transition-smooth);
+}
+
+.demo-ribbon-btn:hover {
+  color: #fff;
+  border-color: var(--accent-sky);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.demo-ribbon-btn:active {
+  transform: scale(0.96);
+  transition-duration: 160ms;
+}
+
+.demo-ribbon-btn:focus-visible {
+  outline: 2px solid var(--accent-sky);
+  outline-offset: 2px;
+}
+
 /* ==========================================================================
    Hero Scroll Track & Sticky Viewport
    ========================================================================== */
@@ -1246,6 +1300,16 @@ body {
   }
   
   .nav-links {
+    display: none;
+  }
+
+  .demo-ribbon-inner {
+    padding: 0.45rem 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .demo-ribbon-inner::-webkit-scrollbar {
     display: none;
   }
 }
