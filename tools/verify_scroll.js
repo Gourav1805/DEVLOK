@@ -176,8 +176,8 @@ async function run() {
     check('nav links all resolve', navOk, JSON.stringify(navTargets));
 
     // 6. Demos preserved on disk
-    const demos = ['satquery-agent-decides.html','satquery-crossmodal.html','satquery-find-the-change.html','satquery-mission-selector.html','time-leaves-evidence.html'];
-    const missingDemos = demos.filter(function(d){ return !fs.existsSync(path.join(__dirname, d)); });
+    const demos = ['pages/satquery-agent-decides.html','pages/satquery-crossmodal.html','pages/satquery-find-the-change.html','pages/satquery-mission-selector.html','pages/time-leaves-evidence.html'];
+    const missingDemos = demos.filter(function(d){ return !fs.existsSync(path.join(__dirname, '..', d)); });
     check('standalone demos preserved', missingDemos.length === 0, 'missing=' + JSON.stringify(missingDemos));
 
     // 7. Downstream sections present
