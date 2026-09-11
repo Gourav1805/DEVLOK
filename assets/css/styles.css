@@ -28,7 +28,10 @@
   --radius-lg: 20px;
   --radius-full: 9999px;
   
-  --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --transition-smooth: transform 0.25s var(--ease-out), border-color 0.25s ease-out, box-shadow 0.25s ease-out, background-color 0.25s ease-out;
 }
 
 *, *::before, *::after {
@@ -335,7 +338,7 @@ body {
   margin: auto 0;
   max-width: 880px;
   align-self: center;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.3s ease-out, transform 0.3s var(--ease-out);
   width: 100%;
 }
 
@@ -424,7 +427,7 @@ body {
   background: linear-gradient(135deg, #38bdf8 0%, #34d399 100%);
   box-shadow: 0 0 35px rgba(56, 189, 248, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s ease-out, background-color 0.3s ease-out, color 0.3s ease-out;
   overflow: hidden;
 }
 
@@ -467,7 +470,7 @@ body {
 .hero-secondary-btn svg {
   width: 16px;
   height: 16px;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s var(--ease-out);
 }
 
 .hero-secondary-btn:hover {
@@ -824,14 +827,16 @@ body {
   transition: opacity 0.3s ease;
 }
 
-.cap-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--border-active);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 25px rgba(56, 189, 248, 0.15);
-}
+@media (hover: hover) and (pointer: fine) {
+  .cap-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-active);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 25px rgba(56, 189, 248, 0.15);
+  }
 
-.cap-card:hover::before {
-  opacity: 1;
+  .cap-card:hover::before {
+    opacity: 1;
+  }
 }
 
 .card-icon-wrap {
@@ -1351,3 +1356,17 @@ body {
     display: none;
   }
 }
+
+/* ==========================================================================
+   Press feedback — every pressable element confirms the press instantly
+   ========================================================================== */
+.hero-cta-btn:active { transform: scale(0.97); }
+.hero-secondary-btn:active { transform: scale(0.97); }
+.btn-nav-cta:active { transform: scale(0.97); }
+.cta-primary-btn:active { transform: scale(0.97); }
+.cta-secondary-btn:active { transform: scale(0.97); }
+.terminal-run-btn:active { transform: scale(0.97); }
+.query-chip:active { transform: scale(0.97); }
+.hero-cta-btn:active, .hero-secondary-btn:active, .btn-nav-cta:active,
+.cta-primary-btn:active, .cta-secondary-btn:active,
+.terminal-run-btn:active, .query-chip:active { transition-duration: 160ms; }

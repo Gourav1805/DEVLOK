@@ -18,7 +18,7 @@
 
   // --- Configuration ---
   const TOTAL_FRAMES = 240;
-  const FRAME_PREFIX = 'frames/frame_';
+  const FRAME_PREFIX = 'assets/frames/frame_';
   const FRAME_EXT = '.webp';
   const LERP_DAMPING = 0.12; // Smoothing factor (0.05 = heavy momentum, 0.25 = snappy)
   
@@ -51,7 +51,7 @@
   let isAnimating = false;
   let isFirstFrameReady = false;
 
-  // Helper: Format frame filename: 1 -> "frames/frame_0001.webp"
+  // Helper: Format frame filename: 1 -> "assets/frames/frame_0001.webp"
   function getFrameUrl(index) {
     const padded = String(index).padStart(4, '0');
     return `${FRAME_PREFIX}${padded}${FRAME_EXT}`;
