@@ -3,7 +3,7 @@
  * 
  * Implements:
  * 1. Sequential 240-frame WebP loading (frame_0001.webp to frame_0240.webp)
- * 2. High-performance requestAnimationFrame linear interpolation (lerp)
+ * 2. High-performance requestAnimationFrame time-based exponential smoothing
  * 3. Bidirectional smooth scrub (scroll down -> forward, scroll up -> reverse)
  * 4. Freezes on scroll stop (zero idle CPU/GPU consumption)
  * 5. Object-fit: cover responsive canvas rendering with Retina/High-DPI support
@@ -20,7 +20,10 @@
   const TOTAL_FRAMES = 240;
   const FRAME_PREFIX = 'assets/frames/frame_';
   const FRAME_EXT = '.webp';
-  const LERP_DAMPING = 0.12; // Smoothing factor (0.05 = heavy momentum, 0.25 = snappy)
+  // Time-based exponential smoothing rate (per second). Frame-rate independent,
+  // so the glide feels identical on 60Hz and 120Hz+ displays. 7.5 matches the
+  // old 0.12-per-tick feel at 60fps without judder on faster screens.
+  const LERP_LAMBDA = 7.5;
   
   // Mobile / Performance detection
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768;
@@ -166,8 +169,18 @@
       img.src = getFrameUrl(index);
       img.onload = () => {
         frames[index] = img;
-        loadedFrames.add(index);
-        resolve(img);
+        // Pre-decode off the critical path so the first draw of each frame
+        // never hitches the scroll glide. A frame counts as loaded only
+        // once it is actually ready to paint.
+        const markReady = () => {
+          loadedFrames.add(index);
+          resolve(img);
+        };
+        if (typeof img.decode === 'function') {
+          img.decode().then(markReady, markReady);
+        } else {
+          markReady();
+        }
       };
       img.onerror = () => {
         // Retry once or ignore gracefully
@@ -261,7 +274,14 @@
   }
 
   // --- RAF Physics Interpolation (Lerp) Engine ---
-  function tick() {
+  let lastTickTime = 0;
+  function tick(now) {
+    const nowMs = typeof now === 'number' ? now : performance.now();
+    if (!lastTickTime) lastTickTime = nowMs;
+    // Clamp dt so a tab-switch stall can't teleport the animation
+    const dt = Math.min(0.05, Math.max(0, (nowMs - lastTickTime) / 1000));
+    lastTickTime = nowMs;
+
     const diff = targetFrame - currentFrame;
 
     // If within threshold, settle and freeze
@@ -269,11 +289,12 @@
       currentFrame = targetFrame;
       renderFrame(Math.round(currentFrame));
       isAnimating = false; // Freeze animation, stop loop to conserve GPU/CPU
+      lastTickTime = 0;
       return;
     }
 
-    // Smooth linear interpolation towards targetFrame
-    currentFrame += diff * LERP_DAMPING;
+    // Time-based exponential smoothing towards targetFrame
+    currentFrame += diff * (1 - Math.exp(-LERP_LAMBDA * dt));
     renderFrame(Math.round(currentFrame));
 
     // Continue loop
