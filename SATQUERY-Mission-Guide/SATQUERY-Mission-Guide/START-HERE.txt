@@ -1,0 +1,26 @@
+SATQUERY MISSION GUIDE
+
+TO VIEW THE DEMO
+1. Extract the ZIP to a folder.
+2. Double-click SATQUERY-DEMO.html to open it in a current desktop browser
+   such as Chrome, Edge, Firefox, or Safari.
+3. Click the five story buttons. Use the pause button on the guide to
+   pause/resume motion. Move the pointer over the character for parallax.
+
+The standalone demo embeds the artwork, CSS and JavaScript. No installation,
+internet connection, account, or local server is required. Download and open
+the file in a browser; email and cloud-drive previews may disable JavaScript.
+
+FOR THE DEVELOPER
+The reusable component is mission-guide.js + mission-guide.css +
+mission-guide.png. Keep these files together and load the JavaScript as a
+module from your website. README.md contains integration instructions.
+index.html is the modular development demo and requires an HTTP server;
+use SATQUERY-DEMO.html for double-click viewing.
+
+The dialogue is scripted and telemetry is illustrative. No AI service is
+connected. The supplied character artwork is preserved, with whole-portrait
+motion; the head and hand are not independently rigged.
+
+To rebuild the standalone demo and ZIP after editing source files:
+python package-demo.py

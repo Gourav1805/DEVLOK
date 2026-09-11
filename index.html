@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DEVLOK — See Earth Differently.</title>
+<meta name="description" content="DEVLOK — an agentic vision-language assistant for Earth observation. Ask a natural-language question; DEVLOK finds the evidence." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* ============================================================
+     DEVLOK main-site extensions. Everything here is namespaced
+     sq2- so the existing styles.css / app.js contract is untouched.
+     ============================================================ */
+  :root{
+    --sq2-violet: #8b7cf6;
+    --sq2-amber: #f0b35a;
+  }
+
+  /* ---- Frame counter: kept in DOM for app.js, never visible ---- */
+  .frame-counter-box{ display:none !important; }
+  #hud-frame-counter{ display:none !important; }
+
+  /* Slim scroll-progress hairline (replaces the numeric counter) */
+  .sq2-progress-hairline{
+    position:absolute; top:0; left:0; right:0; height:2px; z-index:12;
+    background:rgba(255,255,255,.06); pointer-events:none;
+  }
+  #hud-frame-progress-bar{ display:block; height:100%; width:0%; }
+
+  /* ---- Hero narrative beats: one glass panel at a time ---- */
+  #hero-beats{
+    position:absolute; inset:0; z-index:9; pointer-events:none;
+    display:flex; align-items:center; justify-content:center;
+    padding:5.5rem 1.5rem 4.5rem;
+  }
+  .hero-beat{
+    position:absolute; max-width:640px; width:min(640px,92vw);
+    text-align:center; padding:1.75rem 2rem;
+    background:rgba(3,7,18,.62);
+    border:1px solid rgba(56,189,248,.22); border-radius:18px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    box-shadow:0 18px 60px rgba(0,0,0,.55), 0 0 30px rgba(56,189,248,.08);
+    opacity:0; visibility:hidden; transform:translateY(26px) scale(.985);
+    transition:opacity .45s ease, transform .45s ease, visibility 0s linear .45s;
+  }
+  .hero-beat.active{
+    opacity:1; visibility:visible; transform:translateY(0) scale(1);
+    transition:opacity .45s ease, transform .45s ease, visibility 0s;
+  }
+  .hero-beat .beat-kicker{
+    font-family:var(--font-mono); font-size:.68rem; letter-spacing:.22em;
+    color:var(--accent-sky); margin-bottom:.7rem;
+  }
+  .hero-beat .beat-title{
+    font-family:var(--font-display); font-weight:700; color:#fff;
+    font-size:clamp(1.4rem,3vw,2.1rem); line-height:1.2; margin-bottom:.6rem;
+    text-shadow:0 2px 18px rgba(0,0,0,.8);
+  }
+  .hero-beat .beat-body{ font-size:.95rem; color:#cbd5e1; line-height:1.65; }
+  .hero-beat .beat-query{
+    display:inline-block; margin-top:.9rem; padding:.6rem 1.2rem;
+    border:1px solid var(--border-active); border-radius:9999px;
+    background:rgba(56,189,248,.08); color:#fff; font-style:italic; font-size:.92rem;
+  }
+  .beat-flow{ display:flex; align-items:center; justify-content:center; gap:.5rem; flex-wrap:wrap; margin-top:1rem; }
+  .beat-chip{
+    font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em;
+    padding:.4rem .8rem; border-radius:9999px;
+    border:1px solid var(--border-active); color:var(--accent-sky);
+    background:rgba(56,189,248,.08);
+  }
+  .beat-arrow{ color:var(--text-muted); font-size:.8rem; }
+  .beat-years{ display:flex; justify-content:center; gap:.9rem; margin-top:1rem; font-family:var(--font-mono); font-size:.72rem; color:var(--text-secondary); }
+  .beat-years b{ color:#fff; }
+  .beat-flag{
+    display:inline-block; margin-top:.9rem; padding:.45rem 1.1rem; border-radius:6px;
+    background:rgba(240,179,90,.12); border:1px solid rgba(240,179,90,.45);
+    color:var(--sq2-amber); font-family:var(--font-mono); font-size:.75rem; letter-spacing:.12em;
+  }
+
+  /* ---- Generic downstream section helpers ---- */
+  .sq2-section{ position:relative; z-index:20; background:var(--bg-space); border-top:1px solid var(--border-subtle); }
+  .sq2-grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:1.75rem; align-items:stretch; }
+  .sq2-panel{
+    background:var(--bg-card); border:1px solid var(--border-subtle);
+    border-radius:var(--radius-lg); padding:2rem; backdrop-filter:blur(12px);
+  }
+  .sq2-mono{ font-family:var(--font-mono); }
+  .sq2-eyebrow{ font-family:var(--font-mono); font-size:.72rem; letter-spacing:.18em; color:var(--accent-sky); margin-bottom:.8rem; }
+  .sq2-h3{ font-family:var(--font-display); font-size:1.35rem; color:#fff; margin-bottom:.7rem; }
+  .sq2-p{ color:var(--text-secondary); font-size:.95rem; line-height:1.7; }
+  .sq2-reveal{ opacity:0; transform:translateY(28px); transition:opacity .7s ease, transform .7s ease; }
+  .sq2-reveal.in{ opacity:1; transform:none; }
+
+  /* ---- Agent routing diagram ---- */
+  .sq2-agent-flow{ display:flex; flex-direction:column; gap:0; }
+  .sq2-agent-step{
+    border:1px solid var(--border-subtle); border-radius:var(--radius-md);
+    background:rgba(3,7,18,.6); padding:1rem 1.25rem; cursor:pointer;
+    transition:var(--transition-smooth); text-align:left; width:100%;
+    color:var(--text-primary); font-family:var(--font-sans);
+  }
+  .sq2-agent-step + .sq2-agent-conn{ text-align:center; color:var(--text-muted); padding:.25rem 0; }
+  .sq2-agent-step .s-k{ display:block; font-family:var(--font-mono); font-size:.65rem; letter-spacing:.16em; color:var(--text-muted); margin-bottom:.3rem; }
+  .sq2-agent-step .s-v{ font-size:.95rem; font-weight:600; }
+  .sq2-agent-step.active{ border-color:var(--border-highlight); box-shadow:0 0 24px rgba(56,189,248,.18); background:rgba(15,23,42,.85); }
+  .sq2-agent-step.active .s-k{ color:var(--accent-sky); }
+  .sq2-toolchips{ display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }
+  .sq2-toolchip{
+    font-family:var(--font-mono); font-size:.7rem; padding:.35rem .8rem; border-radius:9999px;
+    border:1px solid rgba(16,185,129,.35); color:var(--accent-emerald); background:rgba(16,185,129,.08);
+  }
+  .sq2-agent-readout{
+    font-family:var(--font-mono); font-size:.78rem; color:var(--text-secondary);
+    background:rgba(3,7,18,.75); border:1px solid var(--border-subtle);
+    border-radius:var(--radius-md); padding:1.1rem 1.25rem; line-height:1.8; min-height:180px;
+  }
+  .sq2-agent-readout .ok{ color:var(--accent-emerald); }
+  .sq2-agent-readout .hl{ color:#fff; }
+
+  /* ---- Optical + SAR fuse ---- */
+  .sq2-fuse-wrap{ position:relative; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle); min-height:300px; }
+  .sq2-fuse-layer{ position:absolute; inset:0; }
+  .sq2-fuse-layer img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .sq2-fuse-sar img{ filter:grayscale(1) contrast(1.25) brightness(.92); }
+  .sq2-fuse-tag{
+    position:absolute; top:.7rem; font-family:var(--font-mono); font-size:.65rem; letter-spacing:.12em;
+    padding:.3rem .7rem; border-radius:4px; background:rgba(3,7,18,.7); z-index:3;
+  }
+  .sq2-fuse-opt-tag{ left:.7rem; color:var(--sq2-amber); border:1px solid rgba(240,179,90,.5); }
+  .sq2-fuse-sar-tag{ right:.7rem; color:var(--accent-sky); border:1px solid var(--border-active); }
+  .sq2-fuse-slider{ width:100%; margin-top:1rem; accent-color:var(--accent-sky); }
+  .sq2-fuse-scale{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:.65rem; color:var(--text-muted); margin-top:.3rem; }
+
+  /* ---- Temporal wipe ---- */
+  .sq2-wipe{ position:relative; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle); user-select:none; }
+  .sq2-wipe img{ display:block; width:100%; height:auto; pointer-events:none; }
+  .sq2-wipe-top{ position:absolute; inset:0; overflow:hidden; }
+  .sq2-wipe-top img{ width:100%; height:100%; object-fit:cover; }
+  .sq2-wipe-handle{
+    position:absolute; top:0; bottom:0; width:2px; background:var(--accent-sky);
+    box-shadow:0 0 12px var(--accent-sky); z-index:4;
+  }
+  .sq2-wipe-knob{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:40px; height:40px; border-radius:50%; background:#030712;
+    border:2px solid var(--accent-sky); color:var(--accent-sky);
+    display:flex; align-items:center; justify-content:center; font-size:.8rem; z-index:5;
+  }
+  .sq2-wipe-label{
+    position:absolute; bottom:.7rem; font-family:var(--font-mono); font-size:.65rem; letter-spacing:.1em;
+    padding:.3rem .7rem; border-radius:4px; background:rgba(3,7,18,.7); z-index:3;
+  }
+  .sq2-yearstrip{ display:flex; justify-content:space-between; margin-top:1rem; font-family:var(--font-mono); font-size:.68rem; color:var(--text-muted); }
+  .sq2-yearstrip b{ color:var(--accent-sky); }
+  .sq2-hotspots{ position:relative; }
+  .sq2-hotspot{
+    position:absolute; border:1px dashed rgba(240,179,90,.7); border-radius:6px;
+    background:rgba(240,179,90,.08); cursor:pointer; transition:var(--transition-smooth);
+  }
+  .sq2-hotspot:hover, .sq2-hotspot.open{ background:rgba(240,179,90,.18); border-style:solid; box-shadow:0 0 18px rgba(240,179,90,.25); }
+  .sq2-hotspot .hs-tag{
+    position:absolute; top:-1.6rem; left:0; white-space:nowrap;
+    font-family:var(--font-mono); font-size:.62rem; color:var(--sq2-amber);
+    background:rgba(3,7,18,.85); border:1px solid rgba(240,179,90,.4);
+    padding:.15rem .5rem; border-radius:4px; opacity:0; transition:opacity .2s;
+  }
+  .sq2-hotspot:hover .hs-tag, .sq2-hotspot.open .hs-tag{ opacity:1; }
+
+  /* ---- Evidence answer card ---- */
+  .sq2-evidence{ border:1px solid var(--border-active); border-radius:var(--radius-lg); overflow:hidden; background:rgba(11,17,33,.85); }
+  .sq2-evidence-head{ padding:.8rem 1.4rem; background:rgba(15,23,42,.95); border-bottom:1px solid var(--border-subtle); font-family:var(--font-mono); font-size:.72rem; color:var(--text-secondary); display:flex; justify-content:space-between; }
+  .sq2-evidence-body{ padding:1.75rem; display:grid; grid-template-columns:1.1fr .9fr; gap:1.75rem; }
+  .sq2-qa .q{ font-style:italic; color:#cbd5e1; border-left:2px solid var(--accent-sky); padding-left:1rem; margin-bottom:1.25rem; }
+  .sq2-qa .a{ font-size:1.05rem; color:#fff; font-weight:600; margin-bottom:1rem; }
+  .sq2-trace{ font-family:var(--font-mono); font-size:.76rem; line-height:1.9; color:var(--text-secondary); background:rgba(3,7,18,.7); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:1.1rem 1.25rem; }
+  .sq2-trace .k{ color:var(--text-muted); }
+  .sq2-trace .v{ color:var(--accent-sky); }
+  .sq2-evidence-img{ border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle); position:relative; }
+  .sq2-evidence-img img{ width:100%; display:block; }
+  .sq2-evidence-badge{ position:absolute; top:.7rem; left:.7rem; font-family:var(--font-mono); font-size:.65rem; letter-spacing:.1em; color:var(--sq2-amber); background:rgba(3,7,18,.75); border:1px solid rgba(240,179,90,.5); padding:.3rem .7rem; border-radius:4px; }
+
+  /* ---- Adaptation pipeline ---- */
+  .sq2-pipe{ display:flex; align-items:stretch; gap:.75rem; flex-wrap:wrap; margin:1.5rem 0; }
+  .sq2-pipe-node{
+    flex:1; min-width:150px; text-align:center; padding:1.1rem .8rem;
+    border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:rgba(3,7,18,.6);
+  }
+  .sq2-pipe-node .n-k{ font-family:var(--font-mono); font-size:.62rem; letter-spacing:.14em; color:var(--text-muted); margin-bottom:.4rem; }
+  .sq2-pipe-node .n-v{ font-weight:700; color:#fff; font-size:.95rem; }
+  .sq2-pipe-arrow{ align-self:center; color:var(--text-muted); }
+  .sq2-datasetchips{ display:flex; flex-wrap:wrap; gap:.6rem; }
+  .sq2-dataset{
+    border:1px solid var(--border-subtle); border-radius:var(--radius-md);
+    padding:.9rem 1.1rem; background:rgba(15,23,42,.6); flex:1; min-width:200px;
+  }
+  .sq2-dataset .d-n{ font-weight:700; color:#fff; margin-bottom:.25rem; }
+  .sq2-dataset .d-p{ font-size:.8rem; color:var(--text-secondary); }
+
+  /* ---- Missions ---- */
+  .sq2-missions{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; }
+  .sq2-mission{
+    text-align:left; cursor:pointer; color:var(--text-primary); font-family:var(--font-sans);
+    background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md);
+    padding:1.25rem; transition:var(--transition-smooth);
+  }
+  .sq2-mission:hover, .sq2-mission.active{ border-color:var(--border-highlight); transform:translateY(-3px); box-shadow:0 10px 30px rgba(0,0,0,.4), 0 0 20px rgba(56,189,248,.12); }
+  .sq2-mission .m-k{ font-family:var(--font-mono); font-size:.65rem; letter-spacing:.16em; color:var(--accent-sky); margin-bottom:.45rem; }
+  .sq2-mission .m-q{ font-size:.88rem; font-style:italic; color:#e2e8f0; }
+
+  /* ---- Mission banner ---- */
+  .sq2-mission-banner{ text-align:center; max-width:860px; margin:0 auto; }
+  .sq2-mission-line{ font-size:clamp(1.05rem,2.2vw,1.5rem); color:var(--text-secondary); line-height:1.7; margin:.4rem 0 1.2rem; }
+  .sq2-mission-line b{ color:#fff; }
+  .sq2-demo-note{ margin-top:.7rem; font-family:var(--font-mono); font-size:.62rem; letter-spacing:.1em; color:var(--text-muted); }
+  .sq2-submit{ font-size:.85rem; padding:.8rem 1.6rem; }
+
+  /* ---- Change-mask pulse on open hotspot + evidence badge ---- */
+  .sq2-hotspot.open::after{
+    content:""; position:absolute; inset:0; border-radius:6px; pointer-events:none;
+    background:repeating-linear-gradient(45deg, rgba(240,179,90,.14) 0 6px, transparent 6px 12px);
+    animation:mask-scan 1.6s linear infinite;
+  }
+  @keyframes mask-scan{ to{ background-position:17px 0; } }
+  .sq2-evidence-badge.pulse{ animation:badge-pulse 1.8s ease-in-out infinite; }
+  @keyframes badge-pulse{ 0%,100%{ box-shadow:0 0 0 rgba(240,179,90,0);} 50%{ box-shadow:0 0 22px rgba(240,179,90,.55);} }
+
+  /* ---- Terminal trace ---- */
+  .sq2-terminal-trace{
+    margin-top:1rem; min-height:3.2em; padding:.9rem 1.1rem;
+    background:rgba(3,7,18,.75); border:1px solid var(--border-subtle); border-radius:var(--radius-md);
+    font-family:var(--font-mono); font-size:.76rem; line-height:1.9; color:var(--text-secondary);
+  }
+  .sq2-terminal-trace .ok{ color:var(--accent-emerald); }
+  .sq2-terminal-trace .hl{ color:#fff; }
+  #ravi-dock{
+    position:fixed; right:1rem; bottom:1rem; width:200px; z-index:60;
+    filter:drop-shadow(0 12px 32px rgba(0,0,0,.55));
+    animation:ravi-float 7s ease-in-out infinite;
+  }
+  @keyframes ravi-float{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-8px);} }
+  #ravi-dock .ravi-label{
+    display:flex; align-items:baseline; gap:.5rem;
+    font-family:var(--font-mono); margin-bottom:.4rem; padding:0 .2rem;
+  }
+  #ravi-dock .ravi-label b{ font-size:.72rem; letter-spacing:.2em; color:#fff; }
+  #ravi-dock .ravi-label span{ font-size:.62rem; letter-spacing:.08em; color:var(--text-secondary); }
+  #ravi-dock .ravi-line{
+    margin-top:.4rem; padding:.5rem .7rem; border-radius:8px;
+    background:rgba(3,7,18,.78); border:1px solid var(--border-subtle);
+    font-size:.7rem; line-height:1.5; color:#cbd5e1; min-height:2.6em;
+  }
+  #ravi-dock .ravi-close{
+    position:absolute; top:-10px; right:-6px; z-index:2; width:24px; height:24px; border-radius:50%;
+    background:#0f172a; border:1px solid var(--border-active); color:var(--text-secondary);
+    font-size:.7rem; cursor:pointer; line-height:1;
+  }
+  #ravi-dock.min{ display:none; }
+  #ravi-fab{
+    position:fixed; right:1.1rem; bottom:1.1rem; z-index:60; display:none;
+    width:52px; height:52px; border-radius:50%; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent-cyan),var(--accent-sky)); color:#030712;
+    border:none; font-size:1.3rem; box-shadow:0 0 24px rgba(56,189,248,.45);
+  }
+  #ravi-fab.show{ display:block; }
+
+  @media (max-width:1024px){ .sq2-grid-2, .sq2-evidence-body{ grid-template-columns:1fr; } }
+  @media (max-width:768px){
+    #hero-beats{ padding:4.5rem .8rem 3.5rem; }
+    .hero-beat{ padding:1.2rem 1.1rem; }
+    #ravi-dock{ width:150px; right:.6rem; bottom:.6rem; }
+    .sq2-evidence-body{ grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    #ravi-dock{ animation:none; }
+    .sq2-reveal{ opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<header class="site-header">
+  <div class="nav-container">
+    <a class="brand-logo" href="#top" aria-label="DEVLOK home">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#38bdf8" stroke-width="1.6"/><ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#38bdf8" stroke-width="1" opacity=".6"/><circle cx="16" cy="16" r="3.2" fill="#38bdf8"/></svg>
+      </span>
+      <span class="brand-name">DEVLOK</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a class="nav-link" href="#mission">Mission</a>
+      <a class="nav-link" href="#question">How It Works</a>
+      <a class="nav-link" href="#agent">Agents</a>
+      <a class="nav-link" href="#multimodal">Multi-Modal</a>
+      <a class="nav-link" href="#change">Time</a>
+      <a class="nav-link" href="#evidence">Evidence</a>
+      <a class="nav-link" href="#demo">Demo</a>
+    </nav>
+    <div class="nav-actions">
+      <span class="status-indicator"><span class="status-pulse"></span>SYSTEMS NOMINAL</span>
+      <a class="btn-nav-cta" href="#demo">Launch Analysis</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+<!-- ================= HERO : 240-frame scroll cinema ================= -->
+<div id="hero-scroll-track" class="hero-scroll-track">
+  <div class="hero-sticky-container">
+    <canvas id="hero-canvas" class="hero-canvas" aria-label="Satellite descent animation"></canvas>
+    <div class="hero-overlay hero-vignette"></div>
+    <div class="hero-overlay hero-top-gradient"></div>
+    <div class="hero-overlay hero-bottom-gradient"></div>
+    <div class="hero-overlay hero-grid-scan"></div>
+    <div class="sq2-progress-hairline"><div id="hud-frame-progress-bar"></div></div>
+
+    <!-- Narrative beats: exactly one glass panel visible at a time -->
+    <div id="hero-beats" aria-live="polite">
+      <div class="hero-beat" data-beat="query" data-range="0.15,0.30">
+        <div class="beat-kicker">02 · THE QUESTION</div>
+        <div class="beat-title">Ask a question. DEVLOK finds the evidence.</div>
+        <div class="beat-query">“Has the built-up area increased, and where?”</div>
+      </div>
+      <div class="hero-beat" data-beat="agent" data-range="0.30,0.48">
+        <div class="beat-kicker">03 · THE AGENT</div>
+        <div class="beat-title">The agent understands, then selects.</div>
+        <div class="beat-flow">
+          <span class="beat-chip">QUERY</span><span class="beat-arrow">↓</span>
+          <span class="beat-chip">TASK CLASSIFICATION</span><span class="beat-arrow">↓</span>
+          <span class="beat-chip">INPUT VALIDATION</span><span class="beat-arrow">↓</span>
+          <span class="beat-chip">MODEL / TOOL SELECTION</span>
+        </div>
+      </div>
+      <div class="hero-beat" data-beat="multi" data-range="0.48,0.65">
+        <div class="beat-kicker">04 · OPTICAL + SAR</div>
+        <div class="beat-title">Two sensors. One understanding.</div>
+        <div class="beat-body">Optical gives spectral, contextual information. SAR adds structural detail — through cloud, day or night.</div>
+        <div class="beat-flow">
+          <span class="beat-chip">OPTICAL</span><span class="beat-arrow">+</span>
+          <span class="beat-chip">SAR</span><span class="beat-arrow">→</span>
+          <span class="beat-chip">COMPLEMENTARY INFORMATION</span><span class="beat-arrow">→</span>
+          <span class="beat-chip">FUSED UNDERSTANDING</span>
+        </div>
+      </div>
+      <div class="hero-beat" data-beat="time" data-range="0.65,0.82">
+        <div class="beat-kicker">05 · TIME LEAVES EVIDENCE</div>
+        <div class="beat-title">The same ground, re-observed.</div>
+        <div class="beat-years"><span>2018</span><span>→</span><span>2020</span><span>→</span><span>2022</span><span>→</span><span>2024</span><span>→</span><b>2026</b></div>
+        <div class="beat-body">WHAT changed? WHERE? WHEN? Bi-temporal imagery reveals it.</div>
+      </div>
+      <div class="hero-beat" data-beat="evidence" data-range="0.82,1.01">
+        <div class="beat-kicker">06 · EVIDENCE VERIFIED</div>
+        <div class="beat-title">Change, located and grounded.</div>
+        <span class="beat-flag">▲ CHANGE DETECTED</span>
+        <div class="beat-body">Scroll on for the verified answer, the highlighted region, and the execution trace.</div>
+      </div>
+    </div>
+
+    <div class="hero-foreground-ui">
+      <div class="hud-ribbon">
+        <span class="hud-item"><span class="hud-label">DEVLOK</span><span class="hud-val">ORBITAL DESCENT</span></span>
+        <span class="hud-item hud-coords"><span class="hud-label">AOI</span><span class="hud-val">12.97°N 77.59°E</span></span>
+        <span class="hud-item hud-altitude"><span class="hud-label">ALT</span><span class="hud-val" id="hud-altitude-val">680 KM (LEO)</span></span>
+      </div>
+
+      <!-- 0–15% EARTH beat. app.js fades this box away as the descent begins. -->
+      <div id="hero-content-box" class="hero-content-box">
+        <div class="hero-badge"><span class="badge-dot"></span><span class="badge-text">DEVLOK · AGENTIC EARTH-OBSERVATION INTELLIGENCE</span></div>
+        <h1 class="hero-title">SEE EARTH<br /><span class="title-highlight">DIFFERENTLY.</span></h1>
+        <p class="hero-subtitle">Ask a question. DEVLOK finds the evidence.</p>
+        <div class="hero-actions">
+          <a class="hero-cta-btn" href="#demo"><span class="cta-content">Launch Analysis</span></a>
+          <a class="hero-secondary-btn" href="#agent">How it works →</a>
+        </div>
+        <div class="hero-query-bar">
+          <span class="query-prompt-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><line x1="13.5" y1="13.5" x2="17" y2="17" stroke="currentColor" stroke-width="1.6"/></svg></span>
+          <span class="query-text-rotator"><span class="query-prefix">QUERY</span><span class="query-animated-text" id="query-animated-text">“Has the built-up area increased, and where?”</span></span>
+          <button class="query-execute-btn" id="query-execute-btn" type="button">ASK →</button>
+        </div>
+      </div>
+
+      <div class="hud-bottom-bar">
+        <div class="hud-bottom-left">
+          <div class="telemetry-stat"><span class="t-label">RESOLUTION</span><span class="t-value" id="hud-resolution">0.30 M/PX</span></div>
+          <div class="telemetry-stat"><span class="t-label">STAGE</span><span class="t-value" id="hud-stage-val">01 · SEE EARTH</span></div>
+        </div>
+        <div class="hud-scroll-prompt" id="hud-scroll-prompt">
+          <span class="scroll-prompt-text">SCROLL TO DESCEND</span>
+          <span class="scroll-mouse-pill"><span class="scroll-mouse-wheel"></span></span>
+        </div>
+        <div class="hud-bottom-right">
+          <!-- Hidden from sight (CSS) but present for app.js internals -->
+          <div class="frame-counter-box" aria-hidden="true">
+            <span class="frame-label">FRAME</span>
+            <span class="frame-value" id="hud-frame-counter">FRAME 001 / 240</span>
+          </div>
+          <div class="preload-status-pill" id="preload-status-pill">
+            <span class="preload-spinner"></span><span id="preload-label">BUFFERING FRAMES: 0% (0/240)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MISSION ================= -->
+<section id="mission" class="sq2-section">
+  <div class="section-container" style="padding-top:4.5rem;padding-bottom:4.5rem">
+    <div class="sq2-mission-banner sq2-reveal">
+      <div class="sq2-eyebrow">MISSION</div>
+      <p class="sq2-mission-line">Satellite imagery holds answers. <b>DEVLOK turns a natural-language question about Earth into an evidence-backed remote-sensing answer.</b></p>
+      <div class="beat-flow"><span class="beat-chip">USER</span><span class="beat-arrow">→</span><span class="beat-chip">QUESTION</span><span class="beat-arrow">→</span><span class="beat-chip">DEVLOK</span><span class="beat-arrow">→</span><span class="beat-chip">EVIDENCE</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 1. THE QUESTION ================= -->
+<section id="question" class="sq2-section section-capabilities">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">STAGE 02 · ASK THE QUESTION</div>
+      <h2 class="section-title">Start with plain language.</h2>
+      <p class="section-desc">No GIS workflow to assemble, no model to hand-pick. Ask about what you see — DEVLOK decides which data and models the question needs.</p>
+    </div>
+    <div class="sq2-grid-2">
+      <div class="sq2-panel sq2-reveal">
+        <div class="sq2-eyebrow">NATURAL-LANGUAGE QUERY</div>
+        <div class="sq2-qa"><div class="q">“Has the built-up area increased, and where?”</div></div>
+        <p class="sq2-p">One interface for single images, optical–SAR pairs, and bi-temporal observations. The query carries the intent; the agent carries the plan.</p>
+        <button class="cta-primary-btn sq2-submit" id="querySubmit" type="button" style="margin-top:1.1rem">Submit to DEVLOK →</button>
+      </div>
+      <div class="sq2-panel sq2-reveal">
+        <div class="sq2-eyebrow">THREE INPUT MODES</div>
+        <div class="sq2-pipe">
+          <div class="sq2-pipe-node"><div class="n-k">MODE A</div><div class="n-v">Single image</div></div><span class="sq2-pipe-arrow">→</span>
+          <div class="sq2-pipe-node"><div class="n-k">MODE B</div><div class="n-v">Optical + SAR</div></div><span class="sq2-pipe-arrow">→</span>
+          <div class="sq2-pipe-node"><div class="n-k">MODE C</div><div class="n-v">Bi-temporal</div></div>
+        </div>
+        <p class="sq2-p">Every answer returns text, spatial evidence, and an execution summary.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2. THE AGENT ================= -->
+<section id="agent" class="sq2-section">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">STAGE 03 · DEVLOK DECIDES</div>
+      <h2 class="section-title">The agent decides.</h2>
+      <p class="section-desc">Adapted from <em>satquery-agent-decides.html</em> (SatQuery project reference) — the query determines the workflow, not the other way round.</p>
+    </div>
+    <div class="sq2-grid-2">
+      <div class="sq2-agent-flow sq2-reveal" id="agentSteps" role="list">
+        <button class="sq2-agent-step active" data-step="0" role="listitem"><span class="s-k">QUERY</span><span class="s-v">“Has the built-up area increased, and where?”</span></button>
+        <div class="sq2-agent-conn">↓</div>
+        <button class="sq2-agent-step" data-step="1" role="listitem"><span class="s-k">TASK CLASSIFICATION</span><span class="s-v">CHANGE-BASED VQA</span></button>
+        <div class="sq2-agent-conn">↓</div>
+        <button class="sq2-agent-step" data-step="2" role="listitem"><span class="s-k">INPUT VALIDATION</span><span class="s-v">2 FRAMES · CO-REGISTERED · BI-TEMPORAL ✓</span></button>
+        <div class="sq2-agent-conn">↓</div>
+        <button class="sq2-agent-step" data-step="3" role="listitem"><span class="s-k">MODEL / TOOL SELECTION</span>
+          <span class="sq2-toolchips"><span class="sq2-toolchip">CHANGE UNDERSTANDING</span><span class="sq2-toolchip">TEMPORAL ANALYSIS</span><span class="sq2-toolchip">OPTICAL–SAR ANALYSIS</span><span class="sq2-toolchip">GROUNDING</span></span>
+        </button>
+        <div class="sq2-agent-conn">↓</div>
+        <button class="sq2-agent-step" data-step="4" role="listitem"><span class="s-k">EXECUTION</span><span class="s-v">SPECIALISTS RUN · CHANGE MASK EMITTED</span></button>
+        <div class="sq2-agent-conn">↓</div>
+        <button class="sq2-agent-step" data-step="5" role="listitem"><span class="s-k">EVIDENCE</span><span class="s-v">GROUNDED REGIONS · CHANGE MASK</span></button>
+        <div class="sq2-agent-conn">↓</div>
+        <button class="sq2-agent-step" data-step="6" role="listitem"><span class="s-k">ANSWER</span><span class="s-v">YES — WITH LOCATION + TRACE</span></button>
+      </div>
+      <div class="sq2-agent-readout sq2-reveal" id="agentReadout" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3. SINGLE-IMAGE ================= -->
+<section id="features" class="sq2-section section-capabilities">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">SPECIALIST BENCH · SINGLE IMAGE</div>
+      <h2 class="section-title">One image, three skills.</h2>
+      <p class="section-desc">The specialist bench for single optical, multispectral, or SAR frames.</p>
+    </div>
+    <div class="capabilities-grid">
+      <div class="cap-card sq2-reveal"><div class="card-icon-wrap">◉</div><div class="card-title">Visual Question Answering</div><p class="card-text">Ask pointed questions about land cover, objects, and layout in a single observation.</p><span class="card-badge">VQA SPECIALIST</span></div>
+      <div class="cap-card sq2-reveal"><div class="card-icon-wrap">☰</div><div class="card-title">Captioning / Scene Description</div><p class="card-text">A grounded natural-language summary of what the sensor actually recorded.</p><span class="card-badge">DESCRIBE</span></div>
+      <div class="cap-card sq2-reveal"><div class="card-icon-wrap">⌖</div><div class="card-title">Text-guided Grounding</div><p class="card-text">Link phrases to pixels — every claim points at a region you can inspect.</p><span class="card-badge">GROUND</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4. OPTICAL + SAR ================= -->
+<section id="multimodal" class="sq2-section">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">STAGE 04 · OPTICAL + SAR</div>
+      <h2 class="section-title">One image isn’t always enough.</h2>
+      <p class="section-desc">Adapted from <em>satquery-crossmodal.html</em> (SatQuery project reference). Drag the fader — the same ground read twice, then understood jointly.</p>
+    </div>
+    <div class="sq2-grid-2">
+      <div class="sq2-reveal">
+        <div class="sq2-fuse-wrap" id="fuseWrap">
+          <div class="sq2-fuse-layer"><img src="videoframe_9456.png" alt="Optical satellite view" /><span class="sq2-fuse-tag sq2-fuse-opt-tag">OPTICAL</span></div>
+          <div class="sq2-fuse-layer sq2-fuse-sar" id="fuseSar"><img src="videoframe_9456.png" alt="SAR rendering of the same scene" /><span class="sq2-fuse-tag sq2-fuse-sar-tag">SAR</span></div>
+        </div>
+        <input class="sq2-fuse-slider" id="fuseSlider" type="range" min="0" max="100" value="50" aria-label="Blend between optical and SAR" />
+        <div class="sq2-fuse-scale"><span>◀ OPTICAL · SPECTRAL</span><span>STRUCTURAL · SAR ▶</span></div>
+        <p class="sq2-demo-note">VISUAL DEMONSTRATION — illustrative fusion preview, not a live model run.</p>
+      </div>
+      <div class="sq2-panel sq2-reveal">
+        <div class="sq2-eyebrow">JOINT UNDERSTANDING</div>
+        <h3 class="sq2-h3">Complementary, then combined.</h3>
+        <p class="sq2-p"><b style="color:#e2e8f0">OPTICAL</b> gives spectral, contextual information — land cover, vegetation, texture. <b style="color:#e2e8f0">SAR</b> provides complementary structural information and keeps working through cloud cover, day or night. DEVLOK aligns both to shared coordinates, then reasons over the fused layer.</p>
+        <div class="beat-flow"><span class="beat-chip">OPTICAL</span><span class="beat-arrow">+</span><span class="beat-chip">SAR</span><span class="beat-arrow">→</span><span class="beat-chip">COMPLEMENTARY INFORMATION</span><span class="beat-arrow">→</span><span class="beat-chip">FUSED UNDERSTANDING</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5+6. TIME + FIND THE CHANGE ================= -->
+<section id="change" class="sq2-section">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">STAGE 05 · TIME LEAVES EVIDENCE</div>
+      <h2 class="section-title">Time leaves evidence.</h2>
+      <p class="section-desc">Adapted from <em>time-leaves-evidence.html</em> and <em>satquery-find-the-change.html</em> (SatQuery project references). The same geographic scene, 2018 → 2026 — watch buildings, roads, and land use change, then see the change mask. Drag the divider; tap a highlighted region.</p>
+    </div>
+    <div class="sq2-grid-2">
+      <div class="sq2-reveal">
+        <div class="sq2-wipe" id="wipe">
+          <img src="videoframe_12688.png" alt="Earlier observation (T1)" />
+          <div class="sq2-wipe-top" id="wipeTop"><img src="videoframe_9456.png" alt="Later observation (T2)" /></div>
+          <div class="sq2-wipe-handle" id="wipeHandle"><span class="sq2-wipe-knob">↔</span></div>
+          <span class="sq2-wipe-label" style="left:.7rem">T2 · LATER</span>
+          <span class="sq2-wipe-label" style="right:.7rem">T1 · EARLIER</span>
+        </div>
+        <div class="sq2-yearstrip"><span>2018</span><span>2020</span><span>2022</span><span>2024</span><b>2026</b></div>
+        <p class="sq2-p sq2-mono" style="margin-top:.9rem;font-size:.75rem">WHAT CHANGED? · WHERE? · WHEN? — the change mask answers all three.</p>
+      </div>
+      <div class="sq2-reveal sq2-hotspots">
+        <div class="sq2-panel">
+          <div class="sq2-eyebrow">06 · FIND THE CHANGE</div>
+          <h3 class="sq2-h3">Something changed here.</h3>
+          <p class="sq2-p">Three candidate regions survived the bi-temporal pass. Select each one to reveal its evidence.</p>
+          <div style="position:relative;margin-top:1rem;border:1px solid var(--border-subtle);border-radius:8px;overflow:hidden">
+            <img src="videoframe_9456.png" alt="Change-analysis frame with candidate regions" style="width:100%;display:block" />
+            <div class="sq2-hotspot" data-note="New rectilinear footprints consistent with built-up expansion." style="left:58%;top:52%;width:24%;height:22%"><span class="hs-tag">REGION A · CHANGE DETECTED</span></div>
+            <div class="sq2-hotspot" data-note="Footprint unchanged against the 2018 baseline — no significant change." style="left:30%;top:30%;width:20%;height:14%"><span class="hs-tag">REGION B · NO SIGNIFICANT CHANGE</span></div>
+            <div class="sq2-hotspot" data-note="Shoreline shifted between passes — water extent changed." style="left:8%;top:62%;width:22%;height:20%"><span class="hs-tag">REGION C · WATER EXTENT CHANGED</span></div>
+          </div>
+          <p class="sq2-p sq2-mono" id="hotspotNote" style="margin-top:.9rem;font-size:.78rem;min-height:2.6em">Select a region above.</p>
+          <p class="sq2-demo-note">VISUAL DEMONSTRATION — illustrative imagery and regions.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 7+8. EVIDENCE + TRACE ================= -->
+<section id="evidence" class="sq2-section">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">STAGE 07 · EVIDENCE · STAGE 08 · FINAL ANSWER</div>
+      <h2 class="section-title">Yes — and here is where.</h2>
+      <p class="section-desc">The verified result for “Has the built-up area increased, and where?” No invented confidence or benchmark scores — only the trace.</p>
+    </div>
+    <div class="sq2-evidence sq2-reveal">
+      <div class="sq2-evidence-head"><span>DEVLOK // VERIFIED RESULT</span><span>08 · EXECUTION TRACE ↓</span></div>
+      <div class="sq2-evidence-body">
+        <div class="sq2-qa">
+          <div class="sq2-eyebrow">QUESTION</div>
+          <div class="q">“Has the built-up area increased, and where?”</div>
+          <div class="sq2-eyebrow">ANSWER</div>
+          <div class="a">YES — BUILT-UP AREA INCREASED · REGION A</div>
+          <div class="sq2-trace" id="trace">
+            <div><span class="k">TIME INTERVAL&nbsp;</span><span class="v">2018 → 2026 observation window</span></div>
+            <div><span class="k">TASK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span class="v">Change-based VQA</span></div>
+            <div><span class="k">MODELS/TOOLS</span> <span class="v">Change Understanding · Grounding · Optical–SAR Analysis</span></div>
+            <div><span class="k">INPUT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Bi-temporal, co-registered frames</div>
+            <div><span class="k">OUTPUT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Answer + change mask + grounded regions + this trace</div>
+            <div><span class="k">CONFIDENCE&nbsp;</span> Produced at inference time — not pre-filled here.</div>
+          </div>
+        </div>
+        <div class="sq2-evidence-img">
+          <img src="videoframe_9456.png" alt="Evidence frame with highlighted change region" />
+          <span class="sq2-evidence-badge">▲ CHANGE DETECTED · REGION A</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 9. ADAPTATION ================= -->
+<section id="adaptation" class="sq2-section">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">09 · REMOTE-SENSING ADAPTATION</div>
+      <h2 class="section-title">Tuned for orbit, not for the web.</h2>
+      <p class="section-desc">Generic vision-language models meet remote-sensing data — then serve inside the DEVLOK agent. Datasets below are training and evaluation resources, not performance claims.</p>
+    </div>
+    <div class="sq2-panel sq2-reveal">
+      <div class="sq2-pipe">
+        <div class="sq2-pipe-node"><div class="n-k">STEP 1</div><div class="n-v">Generic VLM</div></div><span class="sq2-pipe-arrow">→</span>
+        <div class="sq2-pipe-node"><div class="n-k">STEP 2 · ADAPTATION DATA</div><div class="n-v">BigEarthNet</div></div><span class="sq2-pipe-arrow">→</span>
+        <div class="sq2-pipe-node"><div class="n-k">STEP 3</div><div class="n-v">RS-adapted component</div></div><span class="sq2-pipe-arrow">→</span>
+        <div class="sq2-pipe-node"><div class="n-k">STEP 4</div><div class="n-v">DEVLOK agent</div></div>
+      </div>
+      <div class="sq2-eyebrow">EVALUATION RESOURCES</div>
+      <div class="sq2-datasetchips">
+        <div class="sq2-dataset"><div class="d-n">VRSBench</div><div class="d-p">Vision-language evaluation for remote sensing.</div></div>
+        <div class="sq2-dataset"><div class="d-n">RSVQA</div><div class="d-p">Visual question answering benchmark.</div></div>
+        <div class="sq2-dataset"><div class="d-n">CDVQA</div><div class="d-p">Change-based VQA benchmark.</div></div>
+        <div class="sq2-dataset"><div class="d-n">ISRO / SAC set</div><div class="d-p">Co-registered Cartosat-2S optical + RISAT SAR evaluation pairs.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 10. MISSIONS ================= -->
+<section id="missions" class="sq2-section">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">10 · MISSIONS</div>
+      <h2 class="section-title">One Earth. Many questions.</h2>
+      <p class="section-desc">From <em>satquery-mission-selector.html</em> (SatQuery project reference). Pick a mission — its question loads straight into the analysis terminal.</p>
+    </div>
+    <div class="sq2-missions sq2-reveal" id="missionGrid">
+      <button class="sq2-mission" data-q="Where is water spreading across the floodplain?"><div class="m-k">FLOOD</div><div class="m-q">“Where is water spreading?”</div></button>
+      <button class="sq2-mission" data-q="Which crop parcels changed since the last pass?"><div class="m-k">AGRICULTURE</div><div class="m-q">“Which fields changed?”</div></button>
+      <button class="sq2-mission" data-q="Has the built-up area increased, and where?"><div class="m-k">URBAN</div><div class="m-q">“Has built-up area expanded?”</div></button>
+      <button class="sq2-mission" data-q="Where has forest canopy decreased?"><div class="m-k">FOREST</div><div class="m-q">“Where has vegetation changed?”</div></button>
+      <button class="sq2-mission" data-q="Which surface-water bodies changed extent?"><div class="m-k">WATER</div><div class="m-q">“Which water bodies changed?”</div></button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 11. TERMINAL / CTA ================= -->
+<section id="demo" class="sq2-section section-demo">
+  <div class="section-container">
+    <div class="section-header sq2-reveal">
+      <div class="section-tag">11 · LIVE TERMINAL</div>
+      <h2 class="section-title">Ask DEVLOK.</h2>
+      <p class="section-desc">A preview of the DEVLOK console. Chips fill the prompt; Run walks the demo trace.</p>
+    </div>
+    <div class="demo-window sq2-reveal">
+      <div class="demo-window-header">
+        <div class="window-dots"><span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span></div>
+        <span class="window-title">devlok — analysis console</span>
+        <span class="window-status">● READY</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-query-area">
+          <div class="terminal-prompt-line">
+            <span class="t-prompt">devlok&gt;</span>
+            <input class="terminal-input" id="terminal-input" value="Has the built-up area increased, and where?" aria-label="Analysis query" />
+            <button class="terminal-run-btn" id="terminal-run-btn" type="button">Run Inference</button>
+          </div>
+          <div class="terminal-tags">
+            <span class="tag-title">TRY:</span>
+            <button class="query-chip" data-query="Has the built-up area increased, and where?" type="button">built-up change</button>
+            <button class="query-chip" data-query="Use optical and SAR together to map water and structures." type="button">optical + SAR</button>
+            <button class="query-chip" data-query="Describe the land cover in this scene." type="button">describe scene</button>
+          </div>
+          <div class="sq2-terminal-trace" id="terminal-trace" aria-live="polite"><span class="sq2-mono" style="color:var(--text-muted)">TRACE — press Run Inference to walk the DEVLOK pipeline.</span></div>
+          <p class="sq2-demo-note">PREVIEW CONSOLE — the trace below is simulated for demonstration.</p>
+        </div>
+        <div class="demo-results-grid">
+          <div class="result-metric-card"><div class="metric-num">01</div><div class="metric-label">Task routed</div><div class="metric-sub">CHANGE-BASED VQA</div></div>
+          <div class="result-metric-card"><div class="metric-num">03</div><div class="metric-label">Specialists</div><div class="metric-sub">CHANGE · VQA · GROUND</div></div>
+          <div class="result-metric-card"><div class="metric-num">02</div><div class="metric-label">Frames compared</div><div class="metric-sub">T1 → T2</div></div>
+          <div class="result-metric-card"><div class="metric-num">∞</div><div class="metric-label">Zoomable evidence</div><div class="metric-sub">MASKS + BOXES</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sq2-section section-cta">
+  <div class="section-container">
+    <div class="cta-banner sq2-reveal">
+      <h2 class="cta-title">Making Earth-observation intelligence accessible through natural language.</h2>
+      <p class="cta-desc">Orbit, ask, verify. The demo pages stay where they are — this page is the mission.</p>
+      <div class="cta-buttons">
+        <button class="cta-primary-btn" type="button" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">Launch Analysis</button>
+        <a class="cta-secondary-btn" style="text-decoration:none" href="satquery-agent-decides.html">Open agent demo →</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-container">
+    <div class="footer-brand"><span class="brand-name">DEVLOK</span><div class="footer-copy">Agentic Earth-observation intelligence · SIH 2026 · SatQuery project reference</div></div>
+    <div class="footer-credits">Standalone demos preserved: agent · crossmodal · temporal · missions · guide</div>
+  </div>
+</footer>
+
+<!-- ================= RAVI GUIDE · small optional companion ================= -->
+<div id="ravi-dock" aria-label="Ravi, mission guide">
+  <button class="ravi-close" id="raviClose" aria-label="Hide guide">×</button>
+  <div class="ravi-label"><b>RAVI</b><span>Mission Guide</span></div>
+  <satquery-guide id="ravi" stage="beginning"></satquery-guide>
+  <div class="ravi-line" id="raviLine" aria-live="polite">Ask a question about the Earth.</div>
+</div>
+<button id="ravi-fab" aria-label="Show guide">◈</button>
+
+<script src="app.js" defer></script>
+<script type="module">
+  import './SATQUERY-Mission-Guide/SATQUERY-Mission-Guide/mission-guide.js';
+</script>
+<script defer>
+(function(){
+  'use strict';
+  var track = document.getElementById('hero-scroll-track');
+  var beats = Array.prototype.slice.call(document.querySelectorAll('.hero-beat'));
+
+  function progress(){
+    if(!track) return 0;
+    var r = track.getBoundingClientRect();
+    var travel = track.offsetHeight - window.innerHeight;
+    if(travel <= 0) return 0;
+    return Math.max(0, Math.min(1, -r.top / travel));
+  }
+  var scheduled = false;
+  var stageVal = document.getElementById('hud-stage-val');
+  var beatStages = { query:'02 · ASK', agent:'03 · DECIDE', multi:'04 · OPTICAL+SAR', time:'05 · TIME', evidence:'06 · EVIDENCE' };
+  function updateBeats(){
+    scheduled = false;
+    var p = progress();
+    var label = '01 · SEE EARTH';
+    beats.forEach(function(b){
+      var range = b.getAttribute('data-range').split(',').map(Number);
+      var on = p >= range[0] && p < range[1];
+      b.classList.toggle('active', on);
+      if(on) label = beatStages[b.getAttribute('data-beat')] || label;
+    });
+    if(stageVal && !lockStage) stageVal.textContent = label;
+  }
+  function onScroll(){
+    if(!scheduled){ scheduled = true; requestAnimationFrame(updateBeats); }
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  window.addEventListener('resize', onScroll);
+  updateBeats();
+
+  /* Downstream sections own the stage readout while in view */
+  var lockStage = false;
+  var stageSecIO = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting && stageVal){
+        var tag = e.target.querySelector('.section-tag');
+        if(tag){
+          var parts = tag.textContent.trim().split('·');
+          var head = parts[0].trim();
+          var tail = parts.length > 1 ? parts[1].trim().split(' ')[0] : '';
+          stageVal.textContent = tail ? (head + ' · ' + tail) : head;
+          lockStage = true;
+        }
+      }
+    });
+  }, {threshold:.4});
+  document.querySelectorAll('#mission,#question,#agent,#multimodal,#change,#evidence,#demo').forEach(function(s){ stageSecIO.observe(s); });
+
+  /* Subtle cursor parallax over the hero cinema (no engine conflict) */
+  var beatsBox = document.getElementById('hero-beats');
+  var noMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!noMotion && track){
+    track.addEventListener('pointermove', function(e){
+      var r = track.getBoundingClientRect();
+      var nx = (e.clientX - r.left) / r.width - 0.5;
+      var ny = (e.clientY - r.top) / r.height - 0.5;
+      if(beatsBox) beatsBox.style.transform = 'translate(' + (nx*-12).toFixed(1) + 'px,' + (ny*-10).toFixed(1) + 'px)';
+    });
+    track.addEventListener('pointerleave', function(){ if(beatsBox) beatsBox.style.transform = ''; });
+  }
+
+  /* Reveal-on-scroll */
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:.12});
+  document.querySelectorAll('.sq2-reveal').forEach(function(el){ io.observe(el); });
+
+  /* Agent steps: click + gentle auto-cycle */
+  var steps = Array.prototype.slice.call(document.querySelectorAll('#agentSteps .sq2-agent-step'));
+  var readout = document.getElementById('agentReadout');
+  var copy = [
+    '<span class="ok">● QUERY RECEIVED</span>\n<span class="hl">“Has the built-up area increased, and where?”</span>\nParsing intent · 2 temporal frames attached.',
+    '<span class="ok">● TASK CLASSIFIED</span>\n<span class="hl">CHANGE-BASED VQA</span>\nComparative question + image pair → change reasoning, not single-frame VQA.',
+    '<span class="ok">● INPUT VALIDATED</span>\n<span class="hl">2 FRAMES · CO-REGISTERED · BI-TEMPORAL ✓</span>\nSame ground, two dates — cleared for change analysis.',
+    '<span class="ok">● MODELS / TOOLS SELECTED</span>\n<span class="hl">CHANGE UNDERSTANDING → TEMPORAL ANALYSIS → OPTICAL–SAR → GROUNDING</span>\nCaptioning / Scene Description held in reserve for single-image queries.',
+    '<span class="ok">● EXECUTION</span>\n<span class="hl">SPECIALISTS RUNNING</span>\nChange mask emitted; candidate regions proposed.',
+    '<span class="ok">● EVIDENCE GROUNDED</span>\n<span class="hl">REGION A · CHANGE DETECTED</span>\nMask + bounding regions anchored to pixels you can inspect.',
+    '<span class="ok">● ANSWER READY</span>\n<span class="hl">YES — with location + trace</span>\nSee the verified answer panel below.'
+  ];
+  var ai = 0, timer = null, userHold = false;
+  function show(i){
+    ai = i;
+    steps.forEach(function(s,j){ s.classList.toggle('active', j===i); });
+    if(readout) readout.innerHTML = copy[i];
+  }
+  steps.forEach(function(s,i){ s.addEventListener('click', function(){ userHold = true; show(i); clearInterval(timer); }); });
+  show(0);
+  var agentIO = new IntersectionObserver(function(es){
+    if(es[0].isIntersecting && !timer && !userHold){
+      timer = setInterval(function(){ show((ai+1)%steps.length); }, 2600);
+    }
+  }, {threshold:.35});
+  if(steps.length) agentIO.observe(document.getElementById('agentSteps'));
+
+  /* Fuse slider */
+  var fuseSlider = document.getElementById('fuseSlider');
+  var fuseSar = document.getElementById('fuseSar');
+  function paintFuse(){
+    var v = Number(fuseSlider.value)/100;
+    fuseSar.style.opacity = String(1-v);
+    fuseSar.style.transform = 'translateX(' + ((0.5-v)*26).toFixed(1) + 'px)';
+  }
+  if(fuseSlider){ fuseSlider.addEventListener('input', paintFuse); paintFuse(); }
+
+  /* Temporal wipe */
+  var wipe = document.getElementById('wipe'), wipeTop = document.getElementById('wipeTop'), wipeHandle = document.getElementById('wipeHandle');
+  function setWipe(frac){
+    frac = Math.max(.02, Math.min(.98, frac));
+    wipeTop.style.width = (frac*100)+'%';
+    wipeHandle.style.left = (frac*100)+'%';
+  }
+  if(wipe){
+    setWipe(.5);
+    var drag = false;
+    function fracFromEvent(e){
+      var r = wipe.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      return x / r.width;
+    }
+    wipe.addEventListener('pointerdown', function(e){ drag = true; wipe.setPointerCapture(e.pointerId); setWipe(fracFromEvent(e)); });
+    wipe.addEventListener('pointermove', function(e){ if(drag) setWipe(fracFromEvent(e)); });
+    wipe.addEventListener('pointerup', function(){ drag = false; });
+  }
+
+  /* Hotspots */
+  var note = document.getElementById('hotspotNote');
+  document.querySelectorAll('.sq2-hotspot').forEach(function(h){
+    function open(e){
+      document.querySelectorAll('.sq2-hotspot').forEach(function(o){ o.classList.remove('open'); });
+      h.classList.add('open');
+      if(note) note.textContent = h.querySelector('.hs-tag').textContent + ' — ' + h.getAttribute('data-note');
+      if(e) e.stopPropagation();
+    }
+    h.addEventListener('click', open);
+    h.addEventListener('mouseenter', function(){ open(); });
+  });
+
+  /* Mission query submit → DEVLOK */
+  var submitBtn = document.getElementById('querySubmit');
+  if(submitBtn){
+    submitBtn.addEventListener('click', function(){
+      if(termInput) termInput.value = 'Has the built-up area increased, and where?';
+      document.getElementById('agent').scrollIntoView({behavior:'smooth'});
+    });
+  }
+
+  /* Missions → terminal */
+  var termInput = document.getElementById('terminal-input');
+  document.querySelectorAll('#missionGrid .sq2-mission').forEach(function(m){
+    m.addEventListener('click', function(){
+      document.querySelectorAll('#missionGrid .sq2-mission').forEach(function(o){ o.classList.remove('active'); });
+      m.classList.add('active');
+      if(termInput) termInput.value = m.getAttribute('data-q');
+      document.getElementById('demo').scrollIntoView({behavior:'smooth'});
+    });
+  });
+
+  /* Terminal Run → simulated DEVLOK reasoning trace (app.js owns the button label) */
+  var runBtn = document.getElementById('terminal-run-btn');
+  var traceBox = document.getElementById('terminal-trace');
+  var traceLines = [
+    '<span class="ok">✓</span> QUERY UNDERSTOOD → <span class="hl">Change-based VQA</span>',
+    '<span class="ok">✓</span> INPUT VALIDATED → 2 co-registered frames',
+    '<span class="ok">✓</span> TOOLS → Change Understanding · Temporal · Optical–SAR · Grounding',
+    '<span class="ok">✓</span> EVIDENCE → <span class="hl">REGION A · change mask</span>',
+    '<span class="ok">✓</span> ANSWER → <span class="hl">YES — built-up area increased</span>'
+  ];
+  if(runBtn && traceBox && !noMotion){
+    runBtn.addEventListener('click', function(){
+      traceBox.innerHTML = '';
+      traceLines.forEach(function(line, i){
+        setTimeout(function(){
+          var div = document.createElement('div');
+          div.innerHTML = line;
+          traceBox.appendChild(div);
+        }, 350 * (i + 1));
+      });
+    });
+  }
+
+  /* Evidence badge pulses while the result is on screen */
+  var evBadge = document.querySelector('.sq2-evidence-badge');
+  if(evBadge){
+    new IntersectionObserver(function(es){
+      evBadge.classList.toggle('pulse', es[0].isIntersecting);
+    }, {threshold:.4}).observe(evBadge);
+  }
+  var ravi = document.getElementById('ravi');
+  var stageMap = [
+    ['question','beginning'], ['agent','agent'], ['multimodal','sensors'],
+    ['change','change'], ['evidence','final'], ['missions','final']
+  ];
+  var secIO = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var found = stageMap.filter(function(p){ return p[0]===e.target.id; })[0];
+      if(found && ravi && ravi.setStage){ try{ ravi.setStage(found[1]); }catch(_){} }
+    });
+  }, {threshold:.3});
+  stageMap.forEach(function(p){ var s = document.getElementById(p[0]); if(s) secIO.observe(s); });
+
+  var dock = document.getElementById('ravi-dock'), fab = document.getElementById('ravi-fab');
+  document.getElementById('raviClose').addEventListener('click', function(){
+    dock.classList.add('min'); fab.classList.add('show');
+  });
+  fab.addEventListener('click', function(){
+    dock.classList.remove('min'); fab.classList.remove('show');
+  });
+
+  /* Ravi story lines — quiet narrative companion, rotates gently */
+  var raviLines = [
+    'Ask a question about the Earth.',
+    'DEVLOK pehle sawaal samajhta hai.',
+    'One sensor doesn’t always tell the whole story.',
+    'Ab dono observations ko compare karte hain.',
+    'Chaliye, dekhte hain zameen par kya badla.',
+    'Yahin se evidence milta hai.'
+  ];
+  var raviLine = document.getElementById('raviLine'), raviIdx = 0;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduceMotion){
+    setInterval(function(){
+      if(!raviLine || dock.classList.contains('min')) return;
+      raviIdx = (raviIdx + 1) % raviLines.length;
+      raviLine.textContent = raviLines[raviIdx];
+    }, 6000);
+  }
+})();
+</script>
+</body>
+</html>

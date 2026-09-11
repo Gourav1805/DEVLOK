@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SATQUERY — The Agent Decides</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:            #060a10;
+    --bg-panel:      #0b121a;
+    --bg-panel-2:    #0e161f;
+    --line:          #1c2733;
+    --line-soft:      rgba(255,255,255,0.05);
+    --ink:           #dce6ef;
+    --ink-dim:       #64758a;
+    --ink-dimmer:    #3c4a5a;
+    --cyan:          #57e0c9;
+    --cyan-dim:      rgba(87,224,201,0.18);
+    --amber:         #e8b155;
+    --amber-dim:     rgba(232,177,85,0.18);
+    --danger:        #e3667c;
+    --focus:         #57e0c9;
+    --radius-sm:     3px;
+    --radius-md:     6px;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--cyan-dim); color:var(--ink); }
+  :focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+
+  /* filler so the section can be scrolled into / through, standalone demo only */
+  .filler{
+    height:60vh;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink-dimmer);
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:.06em;
+  }
+  .filler.top{ border-bottom:1px solid var(--line-soft); }
+  .filler.bottom{ border-top:1px solid var(--line-soft); }
+
+  /* ================= SECTION SHELL ================= */
+  .satq-section{
+    position:relative;
+    height:640vh; /* scroll distance that drives the 7 stages */
+  }
+  .satq-sticky{
+    position:sticky;
+    top:0;
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 8%, rgba(87,224,201,0.05), transparent 60%),
+      var(--bg);
+  }
+
+  /* faint radar grid */
+  .grid-bg{
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, black 30%, transparent 78%);
+    pointer-events:none;
+  }
+  .scan-sweep{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background: linear-gradient(180deg, transparent 0%, rgba(87,224,201,0.035) 45%, transparent 60%);
+    transform: translateY(-100%);
+    animation: sweep 9s linear infinite;
+  }
+  @keyframes sweep{
+    0%{ transform:translateY(-100%); }
+    100%{ transform:translateY(100%); }
+  }
+
+  /* ================= HEADER ================= */
+  .satq-header{
+    position:relative;
+    z-index:3;
+    padding:26px clamp(20px,4vw,56px) 0;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .satq-kicker{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    color:var(--ink-dim);
+  }
+  .satq-kicker b{ color:var(--cyan); font-weight:500; }
+  .satq-title{
+    margin:2px 0 0;
+    font-size:clamp(22px,2.6vw,32px);
+    font-weight:600;
+    letter-spacing:-0.01em;
+    color:var(--ink);
+  }
+  .satq-clock{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-dimmer);
+  }
+
+  /* ================= QUERY BAR ================= */
+  .satq-query-bar{
+    position:relative; z-index:3;
+    margin:18px clamp(20px,4vw,56px) 0;
+    padding:12px 16px;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    font-family:var(--mono);
+    font-size:14px;
+    max-width:640px;
+  }
+  .satq-query-bar .tag{
+    font-size:10px;
+    letter-spacing:.1em;
+    color:var(--ink-dimmer);
+    border:1px solid var(--line);
+    padding:2px 6px;
+    border-radius:var(--radius-sm);
+    flex-shrink:0;
+  }
+  .satq-query-text{ color:var(--ink); white-space:nowrap; overflow:hidden; }
+  .satq-cursor{
+    width:7px; height:15px;
+    background:var(--cyan);
+    display:inline-block;
+    animation:blink 1s steps(1) infinite;
+    flex-shrink:0;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* ================= MAIN LAYOUT ================= */
+  .satq-main{
+    position:relative;
+    z-index:2;
+    flex:1;
+    display:grid;
+    grid-template-columns: 200px 1fr 260px;
+    gap:8px;
+    padding:22px clamp(20px,4vw,56px) 26px;
+    min-height:0;
+  }
+  @media (max-width: 900px){
+    .satq-main{ grid-template-columns: 1fr; }
+    .satq-rail, .satq-exec{ display:none; }
+  }
+
+  /* ================= STAGE RAIL ================= */
+  .satq-rail{
+    position:relative;
+    padding-left:6px;
+    display:flex;
+    flex-direction:column;
+  }
+  .rail-track{
+    position:absolute;
+    left:14px; top:6px; bottom:6px;
+    width:1px;
+    background:var(--line);
+  }
+  .rail-fill{
+    position:absolute;
+    left:14px; top:6px;
+    width:1px;
+    background:var(--cyan);
+    height:0%;
+    box-shadow:0 0 8px var(--cyan);
+    transition:height .25s linear;
+  }
+  .rail-step{
+    position:relative;
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    padding:9px 0;
+    opacity:.38;
+    transition:opacity .3s ease;
+  }
+  .rail-step.active{ opacity:1; }
+  .rail-dot{
+    width:9px; height:9px;
+    border-radius:50%;
+    background:var(--bg-panel-2);
+    border:1px solid var(--ink-dimmer);
+    margin-top:3px;
+    flex-shrink:0;
+    position:relative;
+    z-index:2;
+    transition:border-color .3s, background .3s, box-shadow .3s;
+  }
+  .rail-step.active .rail-dot{
+    background:var(--cyan);
+    border-color:var(--cyan);
+    box-shadow:0 0 10px var(--cyan);
+  }
+  .rail-step.done .rail-dot{
+    background:var(--bg-panel-2);
+    border-color:var(--cyan);
+  }
+  .rail-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.05em;
+    line-height:1.4;
+    color:var(--ink-dim);
+  }
+  .rail-step.active .rail-label{ color:var(--ink); }
+  .rail-num{ color:var(--ink-dimmer); margin-right:6px; }
+  .rail-step.active .rail-num{ color:var(--cyan); }
+
+  /* ================= DIAGRAM ================= */
+  .satq-diagram-wrap{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:0;
+  }
+  .satq-diagram{
+    position:relative;
+    width:min(78vh, 92%);
+    max-width:560px;
+    aspect-ratio:1/1;
+  }
+  .diagram-svg{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    overflow:visible;
+  }
+  .conn-line{
+    stroke:var(--line);
+    stroke-width:0.5;
+    fill:none;
+    transition:stroke .4s ease, stroke-width .4s ease;
+  }
+  .conn-line.active{
+    stroke:var(--cyan);
+    stroke-width:0.7;
+  }
+  .conn-glow{
+    stroke:var(--cyan);
+    stroke-width:2.4;
+    fill:none;
+    opacity:0;
+    filter:blur(2px);
+    transition:opacity .5s ease;
+  }
+  .conn-glow.active{ opacity:.35; }
+
+  .node{
+    position:absolute;
+    transform:translate(-50%,-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--bg-panel);
+    transition: border-color .4s ease, box-shadow .4s ease, background .4s ease, opacity .4s ease;
+  }
+
+  .node-hub{
+    left:50%; top:50%;
+    width:27%; height:27%;
+    border:1px solid var(--cyan-dim);
+    background: radial-gradient(circle at 50% 40%, #0f2622 0%, var(--bg-panel) 72%);
+    box-shadow: 0 0 0 1px rgba(87,224,201,0.08), 0 0 30px rgba(87,224,201,0.12);
+    z-index:4;
+  }
+  .node-hub .hub-ring{
+    position:absolute;
+    inset:-14%;
+    border-radius:50%;
+    border:1px solid rgba(87,224,201,0.16);
+    animation: hubspin 22s linear infinite;
+  }
+  .node-hub .hub-ring.r2{ inset:-24%; border-color:rgba(87,224,201,0.08); animation-duration:34s; animation-direction:reverse; }
+  @keyframes hubspin{ to{ transform:rotate(360deg); } }
+  .node-hub .hub-pulse{
+    position:absolute; inset:0; border-radius:50%;
+    border:1px solid var(--cyan);
+    opacity:0;
+  }
+  .node-hub.pulsing .hub-pulse{
+    animation:hubpulse 1.7s ease-out infinite;
+  }
+  @keyframes hubpulse{
+    0%{ opacity:.55; transform:scale(1); }
+    100%{ opacity:0; transform:scale(1.55); }
+  }
+  .node-hub .hub-label{
+    font-family:var(--mono);
+    font-size:clamp(9px,1.3vw,11px);
+    letter-spacing:.06em;
+    color:var(--cyan);
+    font-weight:500;
+    line-height:1.35;
+    padding:0 8%;
+    position:relative;
+    z-index:2;
+  }
+  .node-hub .hub-sub{
+    font-size:8.5px;
+    color:var(--ink-dimmer);
+    margin-top:3px;
+    letter-spacing:.08em;
+    font-family:var(--mono);
+    position:relative; z-index:2;
+  }
+
+  .node-spec{
+    width:26%; height:26%;
+    padding:6%;
+    cursor:default;
+    animation: float 6s ease-in-out infinite;
+  }
+  .node-spec:nth-of-type(1){ animation-delay:0s; }
+  .node-spec:nth-of-type(2){ animation-delay:.6s; }
+  .node-spec:nth-of-type(3){ animation-delay:1.2s; }
+  .node-spec:nth-of-type(4){ animation-delay:1.8s; }
+  @keyframes float{
+    0%,100%{ margin-top:0px; }
+    50%{ margin-top:-6px; }
+  }
+  .node-spec .spec-label{
+    font-family:var(--mono);
+    font-size:clamp(8px,1.05vw,9.5px);
+    letter-spacing:.05em;
+    color:var(--ink-dim);
+    line-height:1.3;
+    transition:color .4s ease;
+  }
+  .node-spec .spec-dot{
+    width:5px; height:5px;
+    border-radius:50%;
+    background:var(--ink-dimmer);
+    margin-bottom:6px;
+    transition: background .4s ease, box-shadow .4s ease;
+  }
+  .node-spec.active{
+    border-color:var(--cyan);
+    box-shadow:0 0 0 1px rgba(87,224,201,0.12), 0 0 24px rgba(87,224,201,0.22);
+    background: radial-gradient(circle at 50% 35%, rgba(87,224,201,0.08), var(--bg-panel) 72%);
+  }
+  .node-spec.active .spec-label{ color:var(--ink); }
+  .node-spec.active .spec-dot{
+    background:var(--cyan);
+    box-shadow:0 0 8px var(--cyan);
+    animation: dotpulse 1.4s ease-in-out infinite;
+  }
+  @keyframes dotpulse{
+    0%,100%{ opacity:1; } 50%{ opacity:.4; }
+  }
+
+  .pos-top{ left:50%; top:9%; }
+  .pos-right{ left:91%; top:50%; }
+  .pos-bottom{ left:50%; top:91%; }
+  .pos-left{ left:9%; top:50%; }
+
+  .particle{
+    position:absolute;
+    width:5px; height:5px;
+    border-radius:50%;
+    background:var(--cyan);
+    box-shadow:0 0 6px 1px var(--cyan);
+    transform:translate(-50%,-50%);
+    opacity:0;
+    z-index:3;
+    pointer-events:none;
+  }
+
+  /* ================= EXEC PANEL ================= */
+  .satq-exec{
+    display:flex;
+    flex-direction:column;
+    gap:0;
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    background:var(--bg-panel);
+    overflow:hidden;
+    height:fit-content;
+    align-self:center;
+  }
+  .exec-head{
+    padding:10px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--bg-panel-2);
+  }
+  .exec-head span{
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.12em;
+    color:var(--ink-dim);
+  }
+  .exec-led{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--ink-dimmer);
+    transition:background .3s, box-shadow .3s;
+  }
+  .exec-led.live{
+    background:var(--cyan);
+    box-shadow:0 0 6px var(--cyan);
+    animation:dotpulse 1s ease-in-out infinite;
+  }
+  .exec-body{ padding:4px 0; }
+  .exec-row{
+    padding:10px 14px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .exec-row:last-child{ border-bottom:none; }
+  .exec-k{
+    display:block;
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:.1em;
+    color:var(--ink-dimmer);
+    margin-bottom:4px;
+  }
+  .exec-v{
+    display:block;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-dimmer);
+    line-height:1.45;
+    min-height:1.3em;
+    transition:color .3s ease;
+  }
+  .exec-v.filled{ color:var(--ink); }
+  .exec-v .chip{
+    display:inline-block;
+    font-size:10.5px;
+    padding:2px 7px;
+    margin:2px 3px 0 0;
+    border:1px solid var(--line);
+    border-radius:20px;
+    color:var(--ink-dim);
+    opacity:0;
+    transform:translateY(3px);
+    transition:opacity .35s ease, transform .35s ease, color .35s ease, border-color .35s ease;
+  }
+  .exec-v .chip.show{
+    opacity:1; transform:translateY(0);
+    color:var(--cyan); border-color:rgba(87,224,201,0.35);
+  }
+  .exec-row.status .exec-v{
+    color:var(--amber);
+  }
+  .exec-row.status .exec-v.done{ color:var(--cyan); }
+
+  .exec-answer{
+    padding:14px;
+    border-top:1px solid var(--line);
+    background:var(--bg-panel-2);
+  }
+  .exec-answer .exec-k{ color:var(--ink-dimmer); }
+  .exec-answer-text{
+    font-family:var(--sans);
+    font-size:14.5px;
+    font-weight:500;
+    color:var(--ink-dimmer);
+    line-height:1.4;
+    transition:color .4s ease, opacity .4s ease;
+    opacity:.4;
+  }
+  .exec-answer-text.show{ color:var(--ink); opacity:1; }
+  .exec-answer-meta{
+    margin-top:6px;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--ink-dimmer);
+  }
+
+  /* mobile fallback strip (rail/exec hidden) shows compact status */
+  .mobile-status{
+    display:none;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--cyan);
+    text-align:center;
+    padding:8px 20px 0;
+    letter-spacing:.05em;
+  }
+  @media (max-width:900px){ .mobile-status{ display:block; } }
+
+  @media (prefers-reduced-motion: reduce){
+    .scan-sweep, .hub-pulse, .node-spec, .rail-dot, .spec-dot, .exec-led{ animation:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="filler top">↓ scroll to begin orchestration ↓</div>
+
+<section class="satq-section" id="satquerySection" aria-label="SATQUERY agent orchestration demo">
+  <div class="satq-sticky">
+    <div class="grid-bg"></div>
+    <div class="scan-sweep"></div>
+
+    <div class="satq-header">
+      <div>
+        <div class="satq-kicker"><b>SATQUERY</b> // AGENTIC ORCHESTRATION LAYER</div>
+        <h1 class="satq-title">The Agent Decides.</h1>
+      </div>
+      <div class="satq-clock" id="satqClock">SESSION 07 — LIVE</div>
+    </div>
+
+    <div class="satq-query-bar">
+      <span class="tag">QUERY</span>
+      <span class="satq-query-text" id="queryText"></span>
+      <span class="satq-cursor"></span>
+    </div>
+
+    <div class="mobile-status" id="mobileStatus">STAGE 1 / 7 — QUERY UNDERSTANDING</div>
+
+    <div class="satq-main">
+      <!-- STAGE RAIL -->
+      <nav class="satq-rail" id="rail" aria-label="Execution stages">
+        <div class="rail-track"></div>
+        <div class="rail-fill" id="railFill"></div>
+        <!-- steps injected by JS -->
+      </nav>
+
+      <!-- DIAGRAM -->
+      <div class="satq-diagram-wrap">
+        <div class="satq-diagram" id="diagram">
+          <svg class="diagram-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line class="conn-line" id="line-top"    x1="50" y1="50" x2="50" y2="9"  />
+            <line class="conn-line" id="line-right"  x1="50" y1="50" x2="91" y2="50" />
+            <line class="conn-line" id="line-bottom" x1="50" y1="50" x2="50" y2="91" />
+            <line class="conn-line" id="line-left"   x1="50" y1="50" x2="9"  y2="50" />
+
+            <line class="conn-glow" id="glow-top"    x1="50" y1="50" x2="50" y2="9"  />
+            <line class="conn-glow" id="glow-right"  x1="50" y1="50" x2="91" y2="50" />
+            <line class="conn-glow" id="glow-bottom" x1="50" y1="50" x2="50" y2="91" />
+            <line class="conn-glow" id="glow-left"   x1="50" y1="50" x2="9"  y2="50" />
+          </svg>
+
+          <div class="node node-spec pos-top" data-id="vqa">
+            <div class="spec-dot"></div>
+            <div class="spec-label">VQA</div>
+          </div>
+          <div class="node node-spec pos-right" data-id="grounding">
+            <div class="spec-dot"></div>
+            <div class="spec-label">GROUNDING</div>
+          </div>
+          <div class="node node-spec pos-bottom" data-id="fusion">
+            <div class="spec-dot"></div>
+            <div class="spec-label">OPTICAL–SAR<br>FUSION</div>
+          </div>
+          <div class="node node-spec pos-left" data-id="change">
+            <div class="spec-dot"></div>
+            <div class="spec-label">CHANGE<br>UNDERSTANDING</div>
+          </div>
+
+          <div class="node node-hub" id="hubNode">
+            <div class="hub-ring"></div>
+            <div class="hub-ring r2"></div>
+            <div class="hub-pulse"></div>
+            <div class="hub-label">SATQUERY<br>AGENT</div>
+            <div class="hub-sub" id="hubSub">IDLE</div>
+          </div>
+
+          <!-- particles injected by JS -->
+        </div>
+      </div>
+
+      <!-- EXEC PANEL -->
+      <aside class="satq-exec" aria-label="Execution readout">
+        <div class="exec-head">
+          <span>EXECUTION READOUT</span>
+          <div class="exec-led" id="execLed"></div>
+        </div>
+        <div class="exec-body">
+          <div class="exec-row">
+            <span class="exec-k">TASK</span>
+            <span class="exec-v" id="execTask">—</span>
+          </div>
+          <div class="exec-row">
+            <span class="exec-k">INPUT</span>
+            <span class="exec-v" id="execInput">—</span>
+          </div>
+          <div class="exec-row">
+            <span class="exec-k">SPECIALISTS</span>
+            <span class="exec-v" id="execSpecialists">—</span>
+          </div>
+          <div class="exec-row status">
+            <span class="exec-k">STATUS</span>
+            <span class="exec-v" id="execStatus">Idle</span>
+          </div>
+        </div>
+        <div class="exec-answer">
+          <span class="exec-k">ANSWER</span>
+          <div class="exec-answer-text" id="execAnswer">Awaiting analysis…</div>
+          <div class="exec-answer-meta" id="execMeta"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<div class="filler bottom">— end of orchestration trace —</div>
+
+<script>
+(function(){
+
+  var STAGES = [
+    {
+      key:'understand',
+      label:'QUERY UNDERSTANDING',
+      hubSub:'PARSING',
+      status:'Parsing natural-language query',
+      task:null, input:null, specialists:[],
+      answer:null
+    },
+    {
+      key:'validate',
+      label:'INPUT VALIDATION',
+      hubSub:'VALIDATING',
+      status:'Verifying spatial & temporal correspondence',
+      task:null, input:'2 spatially corresponding images', specialists:[],
+      answer:null
+    },
+    {
+      key:'classify',
+      label:'TASK CLASSIFICATION',
+      hubSub:'CLASSIFYING',
+      status:'Resolving task type',
+      task:'Change-based VQA', input:'2 spatially corresponding images', specialists:[],
+      answer:null
+    },
+    {
+      key:'select',
+      label:'SPECIALIST SELECTION',
+      hubSub:'ROUTING',
+      status:'Activating required specialists',
+      task:'Change-based VQA', input:'2 spatially corresponding images',
+      specialists:['change','vqa','grounding'],
+      answer:null
+    },
+    {
+      key:'execute',
+      label:'MODEL EXECUTION',
+      hubSub:'EXECUTING',
+      status:'Running specialist inference',
+      task:'Change-based VQA', input:'2 spatially corresponding images',
+      specialists:['change','vqa','grounding'],
+      particles:true,
+      answer:null
+    },
+    {
+      key:'evidence',
+      label:'EVIDENCE EXTRACTION',
+      hubSub:'EXTRACTING',
+      status:'Extracting supporting evidence',
+      task:'Change-based VQA', input:'2 spatially corresponding images',
+      specialists:['change','vqa','grounding'],
+      particles:true,
+      answer:null
+    },
+    {
+      key:'final',
+      label:'FINAL ANSWER',
+      hubSub:'RESOLVED',
+      status:'Analysis complete',
+      task:'Change-based VQA', input:'2 spatially corresponding images',
+      specialists:['change','vqa','grounding'],
+      done:true,
+      answer:'Yes — built-up area increased by an estimated 14.6% across the observed region.'
+    }
+  ];
+
+  var QUERY = 'Has the built-up area increased?';
+  var SPEC_LABEL = { vqa:'VQA', grounding:'Grounding', change:'Change Understanding', fusion:'Optical–SAR Fusion' };
+
+  var section   = document.getElementById('satquerySection');
+  var rail      = document.getElementById('rail');
+  var railFill  = document.getElementById('railFill');
+  var hubNode   = document.getElementById('hubNode');
+  var hubSub    = document.getElementById('hubSub');
+  var diagram   = document.getElementById('diagram');
+  var queryText = document.getElementById('queryText');
+  var mobileStatus = document.getElementById('mobileStatus');
+
+  var execTask  = document.getElementById('execTask');
+  var execInput = document.getElementById('execInput');
+  var execSpecialists = document.getElementById('execSpecialists');
+  var execStatus = document.getElementById('execStatus');
+  var execAnswer = document.getElementById('execAnswer');
+  var execMeta  = document.getElementById('execMeta');
+  var execLed   = document.getElementById('execLed');
+
+  var specNodes = {};
+  diagram.querySelectorAll('.node-spec').forEach(function(n){ specNodes[n.dataset.id] = n; });
+
+  var lineEls = {
+    vqa:      { line:document.getElementById('line-top'),    glow:document.getElementById('glow-top') },
+    grounding:{ line:document.getElementById('line-right'),  glow:document.getElementById('glow-right') },
+    fusion:   { line:document.getElementById('line-bottom'), glow:document.getElementById('glow-bottom') },
+    change:   { line:document.getElementById('line-left'),   glow:document.getElementById('glow-left') }
+  };
+
+  var pos = { vqa:{x:50,y:9}, grounding:{x:91,y:50}, fusion:{x:50,y:91}, change:{x:9,y:50} };
+
+  // ---- build rail steps ----
+  STAGES.forEach(function(s, i){
+    var el = document.createElement('div');
+    el.className = 'rail-step';
+    el.dataset.index = i;
+    el.innerHTML =
+      '<div class="rail-dot"></div>' +
+      '<div class="rail-label"><span class="rail-num">' + (i+1) + '</span>' + s.label + '</div>';
+    rail.appendChild(el);
+  });
+  var railSteps = rail.querySelectorAll('.rail-step');
+
+  // ---- typewriter for query (plays once, independent of scroll) ----
+  var typed = 0;
+  function typeQuery(){
+    if (typed <= QUERY.length){
+      queryText.textContent = QUERY.slice(0, typed);
+      typed++;
+      setTimeout(typeQuery, 34);
+    }
+  }
+  typeQuery();
+
+  // ---- particles ----
+  var particles = [];
+  function makeParticle(specId, reverse){
+    var p = document.createElement('div');
+    p.className = 'particle';
+    diagram.appendChild(p);
+    particles.push({ el:p, specId:specId, t:Math.random(), speed:0.006 + Math.random()*0.004, reverse:!!reverse });
+  }
+  ['vqa','grounding','change'].forEach(function(id){
+    makeParticle(id, false);
+    makeParticle(id, true);
+  });
+
+  var particlesActive = false;
+  function animateParticles(){
+    particles.forEach(function(p){
+      if (!particlesActive){
+        p.el.style.opacity = 0;
+        return;
+      }
+      var target = pos[p.specId];
+      if (!target){ return; }
+      p.t += p.speed;
+      if (p.t > 1) p.t = 0;
+      var tt = p.reverse ? (1 - p.t) : p.t;
+      var x = 50 + (target.x - 50) * tt;
+      var y = 50 + (target.y - 50) * tt;
+      p.el.style.left = x + '%';
+      p.el.style.top  = y + '%';
+      var fade = Math.sin(tt * Math.PI); // fade in/out along path
+      p.el.style.opacity = (0.15 + fade * 0.85).toFixed(2);
+    });
+    requestAnimationFrame(animateParticles);
+  }
+  requestAnimationFrame(animateParticles);
+
+  // ---- render a given stage index (0-based) ----
+  var currentIndex = -1;
+  function render(index){
+    if (index === currentIndex) return;
+    currentIndex = index;
+    var s = STAGES[index];
+
+    // rail
+    railSteps.forEach(function(el, i){
+      el.classList.toggle('active', i === index);
+      el.classList.toggle('done', i < index);
+    });
+    var pct = ((index + 0.5) / STAGES.length) * 100;
+    railFill.style.height = pct + '%';
+
+    // hub
+    hubSub.textContent = s.hubSub;
+    hubNode.classList.add('pulsing');
+
+    // specialists
+    Object.keys(specNodes).forEach(function(id){
+      var active = s.specialists.indexOf(id) !== -1;
+      specNodes[id].classList.toggle('active', active);
+      var le = lineEls[id];
+      if (le){
+        le.line.classList.toggle('active', active);
+        le.glow.classList.toggle('active', active);
+      }
+    });
+
+    particlesActive = !!s.particles;
+
+    // exec panel
+    setField(execTask, s.task);
+    setField(execInput, s.input);
+
+    if (s.specialists.length){
+      execSpecialists.innerHTML = s.specialists.map(function(id){
+        return '<span class="chip show">' + SPEC_LABEL[id] + '</span>';
+      }).join('');
+      execSpecialists.classList.add('filled');
+    } else {
+      execSpecialists.textContent = '—';
+      execSpecialists.classList.remove('filled');
+    }
+
+    execStatus.textContent = s.status;
+    execStatus.classList.toggle('done', !!s.done);
+    execLed.classList.add('live');
+
+    if (s.answer){
+      execAnswer.textContent = s.answer;
+      execAnswer.classList.add('show');
+      execMeta.textContent = 'RESOLVED VIA: Change Understanding → VQA → Grounding';
+    } else {
+      execAnswer.textContent = 'Awaiting analysis…';
+      execAnswer.classList.remove('show');
+      execMeta.textContent = '';
+    }
+
+    // mobile compact status
+    mobileStatus.textContent = 'STAGE ' + (index+1) + ' / ' + STAGES.length + ' — ' + s.label;
+  }
+
+  function setField(el, value){
+    if (value){
+      el.textContent = value;
+      el.classList.add('filled');
+    } else {
+      el.textContent = '—';
+      el.classList.remove('filled');
+    }
+  }
+
+  render(0);
+
+  // ---- scroll-driven progress ----
+  var ticking = false;
+  function onScroll(){
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      var rect = section.getBoundingClientRect();
+      var total = rect.height - window.innerHeight;
+      var scrolled = -rect.top;
+      var progress = total > 0 ? scrolled / total : 0;
+      progress = Math.min(1, Math.max(0, progress));
+
+      var idx = Math.floor(progress * STAGES.length);
+      if (idx >= STAGES.length) idx = STAGES.length - 1;
+      if (idx < 0) idx = 0;
+      render(idx);
+
+      ticking = false;
+    });
+  }
+
+  window.addEventListener('scroll', onScroll, { passive:true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+
+})();
+</script>
+
+</body>
+</html>
